@@ -1,2 +1,1 @@
-print("Twice")
-print("Thrice")
+print("Fourth")
