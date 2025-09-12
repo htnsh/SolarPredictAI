@@ -1,1 +1,2 @@
 print("Twice")
+print("Thrice")
