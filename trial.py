@@ -1,1 +1,1 @@
-print("Once")
+print("Twice")
