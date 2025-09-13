@@ -182,10 +182,12 @@
 
 // export default Input;
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Zap, RotateCw, Compass, ArrowRight, Droplets, Thermometer, Sun, Wind, Cloud } from 'lucide-react';
+import { MapPin, Zap, RotateCw, Compass, ArrowRight, Droplets, Thermometer, Sun, Wind, Cloud, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { weatherService, WeatherData } from '../services/weatherService';
+import { solarPredictionService, SolarPredictionRequest } from '../services/solarPredictionService';
 
 interface FormData {
   location: string;
@@ -217,16 +219,120 @@ const Input: React.FC = () => {
     azimuth: '',
   });
 
+  // Loading and error states
+  const [isLoadingWeather, setIsLoadingWeather] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
+  const [weatherSuccess, setWeatherSuccess] = useState<string | null>(null);
+  const [isGeneratingPrediction, setIsGeneratingPrediction] = useState(false);
+
+  // Fetch weather data when location changes
+  const fetchWeatherData = async (city: string) => {
+    if (!city.trim()) {
+      setWeatherError(null);
+      setWeatherSuccess(null);
+      return;
+    }
+
+    setIsLoadingWeather(true);
+    setWeatherError(null);
+    setWeatherSuccess(null);
+
+    try {
+      const result = await weatherService.getWeatherByCity(city);
+      
+      if ('message' in result) {
+        // Error case
+        setWeatherError(result.message);
+      } else {
+        // Success case
+        const weatherData = result as WeatherData;
+        
+        // Update form data with weather information
+        setFormData(prev => ({
+          ...prev,
+          temperature: weatherData.temperature.toString(),
+          humidity: weatherData.humidity.toString(),
+          windSpeed: weatherData.windSpeed.toString(),
+          cloudCover: weatherService.mapWeatherToCloudCover(weatherData.description, weatherData.cloudCover),
+          solarIrradiance: weatherData.solarIrradiance.toString()
+        }));
+
+        setWeatherSuccess(`Weather data loaded for ${weatherData.city}: ${weatherData.description}`);
+      }
+    } catch (error) {
+      setWeatherError('Failed to fetch weather data. Please try again.');
+    } finally {
+      setIsLoadingWeather(false);
+    }
+  };
+
+  // Debounced weather fetching
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      if (formData.location) {
+        fetchWeatherData(formData.location);
+      }
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.location]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Store form data in localStorage or context
-    localStorage.setItem('solarInputData', JSON.stringify(formData));
-    navigate('/dashboard');
+    
+    // Validate required fields
+    const requiredFields = ['panelArea', 'tilt', 'azimuth', 'solarIrradiance', 'temperature', 'humidity', 'windSpeed', 'cloudCover'];
+    const missingFields = requiredFields.filter(field => !formData[field as keyof FormData]);
+    
+    if (missingFields.length > 0) {
+      setWeatherError(`Please fill in all required fields: ${missingFields.join(', ')}`);
+      return;
+    }
+
+    setIsGeneratingPrediction(true);
+    setWeatherError(null);
+
+    try {
+      // Prepare prediction request
+      const predictionRequest: SolarPredictionRequest = {
+        panel_area: parseFloat(formData.panelArea),
+        tilt: parseFloat(formData.tilt),
+        azimuth: parseFloat(formData.azimuth),
+        ghi: parseFloat(formData.solarIrradiance),
+        dni: parseFloat(formData.solarIrradiance) * 0.8, // Estimate DNI as 80% of GHI
+        temperature: parseFloat(formData.temperature),
+        humidity: parseFloat(formData.humidity),
+        wind_speed: parseFloat(formData.windSpeed),
+        cloud_cover: formData.cloudCover
+      };
+
+      // Get solar prediction
+      const result = await solarPredictionService.getSolarPrediction(predictionRequest);
+      
+      if ('message' in result) {
+        // Error case
+        setWeatherError(result.message);
+      } else {
+        // Success case - store both input data and prediction result
+        const predictionData = {
+          inputData: formData,
+          prediction: result,
+          timestamp: new Date().toISOString()
+        };
+        
+        localStorage.setItem('solarInputData', JSON.stringify(predictionData));
+        navigate('/dashboard');
+      }
+    } catch (error) {
+      setWeatherError('Failed to generate solar prediction. Please try again.');
+    } finally {
+      setIsGeneratingPrediction(false);
+    }
   };
 
   const inputFields = [
@@ -351,6 +457,52 @@ const Input: React.FC = () => {
           onSubmit={handleSubmit}
           className="bg-white dark:bg-gray-800 rounded-3xl p-8 shadow-2xl border border-orange-100 dark:border-blue-800"
         >
+          {/* Weather Status Indicators */}
+          {isLoadingWeather && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"
+            >
+              <div className="flex items-center space-x-3">
+                <Loader2 className="w-5 h-5 text-blue-500 animate-spin" />
+                <span className="text-blue-700 dark:text-blue-300 font-medium">
+                  Fetching weather data for {formData.location}...
+                </span>
+              </div>
+            </motion.div>
+          )}
+
+          {weatherError && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+            >
+              <div className="flex items-center space-x-3">
+                <AlertCircle className="w-5 h-5 text-red-500" />
+                <span className="text-red-700 dark:text-red-300 font-medium">
+                  {weatherError}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
+          {weatherSuccess && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="mb-6 p-4 rounded-xl bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+            >
+              <div className="flex items-center space-x-3">
+                <CheckCircle className="w-5 h-5 text-green-500" />
+                <span className="text-green-700 dark:text-green-300 font-medium">
+                  {weatherSuccess}
+                </span>
+              </div>
+            </motion.div>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {inputFields.map((field, index) => (
               <motion.div
@@ -406,13 +558,27 @@ const Input: React.FC = () => {
             className="mt-12 text-center"
           >
             <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
+              whileHover={{ scale: isGeneratingPrediction ? 1 : 1.05 }}
+              whileTap={{ scale: isGeneratingPrediction ? 1 : 0.95 }}
               type="submit"
-              className="inline-flex items-center px-12 py-4 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 text-white font-semibold text-lg shadow-lg hover:shadow-xl transition-all duration-300"
+              disabled={isGeneratingPrediction}
+              className={`inline-flex items-center px-12 py-4 rounded-xl font-semibold text-lg shadow-lg transition-all duration-300 ${
+                isGeneratingPrediction
+                  ? 'bg-gray-400 dark:bg-gray-600 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 hover:shadow-xl'
+              } text-white`}
             >
-              Generate Predictions
-              <ArrowRight className="w-6 h-6 ml-2" />
+              {isGeneratingPrediction ? (
+                <>
+                  <Loader2 className="w-6 h-6 mr-2 animate-spin" />
+                  Generating Predictions...
+                </>
+              ) : (
+                <>
+                  Generate Predictions
+                  <ArrowRight className="w-6 h-6 ml-2" />
+                </>
+              )}
             </motion.button>
           </motion.div>
 
@@ -426,11 +592,11 @@ const Input: React.FC = () => {
               💡 Tips for Better Accuracy
             </h3>
             <ul className="text-sm text-gray-600 dark:text-gray-300 space-y-1">
-              <li>• Enter current weather conditions for real-time predictions</li>
+              <li>• Enter a city name to automatically fetch current weather data</li>
+              <li>• Weather data will auto-populate temperature, humidity, wind speed, and cloud cover</li>
               <li>• Optimal tilt angle is typically equal to your latitude</li>
               <li>• Azimuth of 180° (south-facing) is ideal in the Northern Hemisphere</li>
-              <li>• Solar irradiance values typically range from 0-1000 W/m²</li>
-              <li>• Cloud cover significantly affects solar panel efficiency</li>
+              <li>• Solar irradiance is estimated based on weather conditions</li>
             </ul>
           </motion.div>
         </motion.form>
