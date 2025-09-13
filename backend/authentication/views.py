@@ -143,14 +143,38 @@ def verify_token(request):
             access_token = AccessToken(token)
             user_id = access_token['user_id']
             
-            # Get user from database - handle UUID properly
+            # Get user from database - handle UUID properly and check both MongoDB and Django ORM
             try:
-                user = User.objects.get(id=user_id)
+                # Convert string user_id to UUID if needed
+                import uuid
+                if isinstance(user_id, str):
+                    user_id = uuid.UUID(user_id)
+                
+                # First try to get user from Django ORM
+                try:
+                    user = User.objects.get(id=user_id)
+                except User.DoesNotExist:
+                    # If not found in Django ORM, try MongoDB
+                    user = User.get_from_mongodb(user_id)
+                    if not user:
+                        logger.error(f"User not found in both Django ORM and MongoDB: {user_id}")
+                        return Response({'valid': False}, status=status.HTTP_401_UNAUTHORIZED)
+                    else:
+                        # User found in MongoDB but not Django ORM - sync them
+                        logger.warning(f"User {user_id} found in MongoDB but not Django ORM, syncing...")
+                        try:
+                            # Save the MongoDB user to Django ORM
+                            user.save()
+                            logger.info(f"Successfully synced user {user_id} to Django ORM")
+                        except Exception as sync_error:
+                            logger.error(f"Failed to sync user {user_id} to Django ORM: {sync_error}")
+                
                 return Response({
                     'valid': True,
                     'user': UserSerializer(user).data
                 }, status=status.HTTP_200_OK)
-            except User.DoesNotExist:
+            except (User.DoesNotExist, ValueError, TypeError) as e:
+                logger.error(f"User lookup failed: {e}, user_id: {user_id}, type: {type(user_id)}")
                 return Response({'valid': False}, status=status.HTTP_401_UNAUTHORIZED)
                 
         except Exception as e:

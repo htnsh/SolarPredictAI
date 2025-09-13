@@ -66,10 +66,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       verifyToken().then((isValid) => {
         if (!isValid) {
           // Server says token is invalid, clear storage
+          console.warn('Server token verification failed, clearing user data');
           localStorage.removeItem('user');
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
           setUser(null);
+        } else {
+          console.log('Server token verification successful');
         }
       }).catch((error) => {
         // Network error - keep user logged in if token is not expired locally
@@ -83,8 +86,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const verifyToken = async (): Promise<boolean> => {
     try {
       const token = localStorage.getItem('access_token');
-      if (!token) return false;
+      if (!token) {
+        console.warn('No access token found for verification');
+        return false;
+      }
 
+      console.log('Verifying token with server...');
       const response = await fetch(`${API_BASE_URL}/verify/`, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -92,8 +99,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
+      console.log('Token verification response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('Token verification response data:', data);
+        
         if (data.valid && data.user) {
           // Update user data from the response
           const userData: User = {
@@ -104,11 +115,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUser(userData);
           localStorage.setItem('user', JSON.stringify(userData));
           return true;
+        } else {
+          console.warn('Token verification returned invalid or missing user data');
         }
+      } else {
+        const errorData = await response.text();
+        console.error('Token verification failed with status:', response.status, 'Error:', errorData);
       }
       return false;
     } catch (error) {
-      console.error('Token verification failed:', error);
+      console.error('Token verification network error:', error);
       // Don't return false immediately on network errors
       // Let the calling code decide what to do
       throw error;
