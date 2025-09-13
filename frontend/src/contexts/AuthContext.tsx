@@ -26,6 +26,18 @@ export const useAuth = () => {
 
 const API_BASE_URL = 'http://localhost:8000/api/auth';
 
+// Helper function to check if JWT token is expired locally
+const isTokenExpired = (token: string): boolean => {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const currentTime = Date.now() / 1000;
+    return payload.exp < currentTime;
+  } catch (error) {
+    // If we can't parse the token, consider it expired
+    return true;
+  }
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,17 +48,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const savedToken = localStorage.getItem('access_token');
     
     if (savedUser && savedToken) {
-      // Verify token is still valid
+      // First check if token is expired locally
+      if (isTokenExpired(savedToken)) {
+        // Token is expired, clear storage
+        localStorage.removeItem('user');
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Token is not expired locally, set user immediately for better UX
+      setUser(JSON.parse(savedUser));
+      setIsLoading(false);
+      
+      // Then verify with server in background
       verifyToken().then((isValid) => {
-        if (isValid) {
-          setUser(JSON.parse(savedUser));
-        } else {
-          // Token is invalid, clear storage
+        if (!isValid) {
+          // Server says token is invalid, clear storage
           localStorage.removeItem('user');
           localStorage.removeItem('access_token');
           localStorage.removeItem('refresh_token');
+          setUser(null);
         }
-        setIsLoading(false);
+      }).catch((error) => {
+        // Network error - keep user logged in if token is not expired locally
+        console.warn('Token verification failed due to network error:', error);
       });
     } else {
       setIsLoading(false);
@@ -82,7 +109,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return false;
     } catch (error) {
       console.error('Token verification failed:', error);
-      return false;
+      // Don't return false immediately on network errors
+      // Let the calling code decide what to do
+      throw error;
     }
   };
 
@@ -110,18 +139,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('access_token', data.tokens.access);
         localStorage.setItem('refresh_token', data.tokens.refresh);
         
-        setIsLoading(false);
         return true;
       } else {
         const errorData = await response.json();
         console.error('Login failed:', errorData);
-        setIsLoading(false);
         return false;
       }
     } catch (error) {
       console.error('Login error:', error);
-      setIsLoading(false);
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -149,18 +177,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.setItem('access_token', data.tokens.access);
         localStorage.setItem('refresh_token', data.tokens.refresh);
         
-        setIsLoading(false);
         return true;
       } else {
         const errorData = await response.json();
         console.error('Signup failed:', errorData);
-        setIsLoading(false);
         return false;
       }
     } catch (error) {
       console.error('Signup error:', error);
-      setIsLoading(false);
       return false;
+    } finally {
+      setIsLoading(false);
     }
   };
 
