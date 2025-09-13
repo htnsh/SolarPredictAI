@@ -1,22 +1,31 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sun, Moon, Menu, X } from 'lucide-react';
+import { Sun, Moon, Menu, X, LogOut, User } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const [isMenuOpen, setIsMenuOpen] = React.useState(false);
 
-  const navigationItems = [
+
+
+  const publicNavigationItems = [
+    { path: '/', label: 'Home' },
+  ];
+
+  const privateNavigationItems = [
     { path: '/', label: 'Home' },
     { path: '/input', label: 'Input Data' },
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/recommendations', label: 'Recommendations' },
     { path: '/reports', label: 'Reports' },
-    { path: '/about', label: 'About' },
   ];
+
+  const navigationItems = user ? privateNavigationItems : publicNavigationItems;
 
   return (
     <motion.header
@@ -67,6 +76,36 @@ const Header: React.FC = () => {
           </nav>
 
           <div className="flex items-center space-x-4">
+            {/* Auth Buttons - Desktop */}
+            {user ? (
+              <div className="hidden md:flex items-center space-x-4">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={logout}
+                  className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/40 transition-colors duration-200"
+                >
+                  <LogOut className="w-4 h-4" />
+                  <span>Logout</span>
+                </motion.button>
+              </div>
+            ) : (
+              <div className="hidden md:flex items-center space-x-3">
+                <Link
+                  to="/login"
+                  className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-blue-400 transition-colors duration-200"
+                >
+                  Login
+                </Link>
+                <Link
+                  to="/signup"
+                  className="px-4 py-2 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 hover:from-orange-600 hover:to-yellow-600 dark:hover:from-blue-700 dark:hover:to-indigo-700 transition-all duration-200"
+                >
+                  Sign Up
+                </Link>
+              </div>
+            )}
+
             <motion.button
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -108,6 +147,41 @@ const Header: React.FC = () => {
                 {item.label}
               </Link>
             ))}
+            
+            {/* Mobile Auth Buttons */}
+            <div className="mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+              {user ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => {
+                      logout();
+                      setIsMenuOpen(false);
+                    }}
+                    className="flex items-center space-x-2 w-full px-3 py-2 text-base font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors duration-200"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    <span>Logout</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <Link
+                    to="/login"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="block px-3 py-2 text-base font-medium text-gray-700 dark:text-gray-300 hover:text-orange-600 dark:hover:text-blue-400 transition-colors duration-200"
+                  >
+                    Login
+                  </Link>
+                  <Link
+                    to="/signup"
+                    onClick={() => setIsMenuOpen(false)}
+                    className="block px-3 py-2 text-base font-medium text-white bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 hover:from-orange-600 hover:to-yellow-600 dark:hover:from-blue-700 dark:hover:to-indigo-700 rounded-lg transition-all duration-200 text-center"
+                  >
+                    Sign Up
+                  </Link>
+                </div>
+              )}
+            </div>
           </motion.nav>
         )}
       </div>
