@@ -2,7 +2,7 @@ import os
 from pymongo import MongoClient
 from django.conf import settings
 import logging
-from .config import MONGODB_URI, MONGODB_DB_NAME
+from .config import MONGODB_URI, MONGODB_DB_NAME, USERS_COLLECTION, PREDICTIONS_COLLECTION, TOKENS_COLLECTION, HISTORY_COLLECTION
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +35,13 @@ class MongoDBConnection:
 
 # MongoDB collections
 def get_users_collection():
-    return MongoDBConnection.get_collection('users')
+    return MongoDBConnection.get_collection(USERS_COLLECTION)
 
 def get_tokens_collection():
-    return MongoDBConnection.get_collection('tokens')
+    return MongoDBConnection.get_collection(TOKENS_COLLECTION)
+
+def get_predictions_collection():
+    return MongoDBConnection.get_collection(PREDICTIONS_COLLECTION)
+
+def get_historical_collection():
+    return MongoDBConnection.get_collection(HISTORY_COLLECTION)

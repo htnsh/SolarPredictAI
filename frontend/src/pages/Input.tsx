@@ -185,9 +185,10 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Zap, RotateCw, Compass, ArrowRight, Droplets, Thermometer, Sun, Wind, Cloud, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { MapPin, Zap, RotateCw, Compass, ArrowRight, Droplets, Thermometer, Sun, Wind, Cloud, Loader2, AlertCircle, CheckCircle, LogIn } from 'lucide-react';
 import { weatherService, WeatherData } from '../services/weatherService';
 import { solarPredictionService, SolarPredictionRequest } from '../services/solarPredictionService';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FormData {
   location: string;
@@ -205,6 +206,7 @@ interface FormData {
 
 const Input: React.FC = () => {
   const navigate = useNavigate();
+  const { user, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState<FormData>({
     location: '',
     humidity: '',
@@ -224,6 +226,13 @@ const Input: React.FC = () => {
   const [weatherError, setWeatherError] = useState<string | null>(null);
   const [weatherSuccess, setWeatherSuccess] = useState<string | null>(null);
   const [isGeneratingPrediction, setIsGeneratingPrediction] = useState(false);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      navigate('/login');
+    }
+  }, [user, authLoading, navigate]);
 
   // Fetch weather data when location changes
   const fetchWeatherData = async (city: string) => {
@@ -432,6 +441,48 @@ const Input: React.FC = () => {
       max: '360',
     },
   ];
+
+  // Show loading state while checking authentication
+  if (authLoading) {
+    return (
+      <div className="py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mx-auto mb-4"></div>
+              <p className="text-gray-600 dark:text-gray-300">Loading...</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Show login prompt if not authenticated
+  if (!user) {
+    return (
+      <div className="py-20">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-8 text-center">
+            <LogIn className="w-12 h-12 text-yellow-500 mx-auto mb-4" />
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">
+              Authentication Required
+            </h3>
+            <p className="text-gray-600 dark:text-gray-300 mb-4">
+              Please log in to create solar predictions and access your dashboard.
+            </p>
+            <button
+              onClick={() => navigate('/login')}
+              className="inline-flex items-center px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white font-medium rounded-lg transition-colors duration-200"
+            >
+              <LogIn className="w-5 h-5 mr-2" />
+              Go to Login
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="py-20">

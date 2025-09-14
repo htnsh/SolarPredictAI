@@ -21,6 +21,13 @@ class User(models.Model):
     def __str__(self):
         return self.email
 
+    @property
+    def is_authenticated(self):
+        """
+        Always return True. This is required for Django REST Framework permissions.
+        """
+        return True
+
     def set_password(self, raw_password):
         """Hash and set the password"""
         salt = bcrypt.gensalt()

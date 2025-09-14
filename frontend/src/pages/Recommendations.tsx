@@ -1,37 +1,41 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { RotateCw, Compass, TrendingUp, AlertCircle, CheckCircle, ArrowRight } from 'lucide-react';
 
+const iconMap: Record<string, any> = {
+  'Optimal Tilt Angle': RotateCw,
+  'Azimuth Orientation': Compass,
+  'Seasonal Adjustment': TrendingUp,
+};
+
 const Recommendations: React.FC = () => {
-  const recommendations = [
-    {
-      title: 'Optimal Tilt Angle',
-      current: '25°',
-      recommended: '32°',
-      improvement: '+14% efficiency',
-      description: 'Adjusting your panel tilt to 32° will maximize solar exposure throughout the year.',
-      priority: 'high',
-      icon: RotateCw,
-    },
-    {
-      title: 'Azimuth Orientation',
-      current: '165°',
-      recommended: '180°',
-      improvement: '+8% efficiency',
-      description: 'Rotating panels 15° more towards true south will increase energy capture.',
-      priority: 'medium',
-      icon: Compass,
-    },
-    {
-      title: 'Seasonal Adjustment',
-      current: 'Fixed',
-      recommended: 'Bi-annual',
-      improvement: '+12% efficiency',
-      description: 'Adjusting tilt twice yearly (winter: +15°, summer: -15°) optimizes performance.',
-      priority: 'medium',
-      icon: TrendingUp,
-    },
-  ];
+  const [recommendations, setRecommendations] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const token = localStorage.getItem('access_token');
+        const res = await fetch('http://localhost:8000/api/dashboard/recommendations/', {
+          headers: {
+            'Authorization': token ? `Bearer ${token}` : '',
+            'Content-Type': 'application/json',
+          },
+        });
+        if (!res.ok) throw new Error('Failed to fetch recommendations');
+        const data = await res.json();
+        setRecommendations(data.recommendations || []);
+      } catch (err: any) {
+        setError(err.message || 'Error fetching recommendations');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRecommendations();
+  }, []);
 
   const optimizationTips = [
     {
@@ -103,71 +107,80 @@ const Recommendations: React.FC = () => {
 
         {/* Main Recommendations */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-12">
-          {recommendations.map((rec, index) => (
-            <motion.div
-              key={rec.title}
-              initial={{ opacity: 0, y: 50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: index * 0.2 }}
-              whileHover={{ y: -8, scale: 1.02 }}
-              className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${getPriorityColor(rec.priority)} flex items-center justify-center`}>
-                  <rec.icon className="w-6 h-6 text-white" />
-                </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                  rec.priority === 'high' 
-                    ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
-                    : rec.priority === 'medium'
-                    ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
-                    : 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400'
-                }`}>
-                  {rec.priority.toUpperCase()} PRIORITY
-                </span>
-              </div>
-
-              <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
-                {rec.title}
-              </h3>
-
-              <div className="space-y-3 mb-4">
-                <div className="flex justify-between items-center py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
-                  <span className="text-sm text-gray-600 dark:text-gray-400">Current:</span>
-                  <span className="font-medium text-gray-900 dark:text-white">{rec.current}</span>
-                </div>
-                <div className="flex justify-between items-center py-2 px-3 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-orange-200 dark:border-blue-800">
-                  <span className="text-sm text-orange-600 dark:text-blue-400">Recommended:</span>
-                  <span className="font-medium text-orange-700 dark:text-blue-300">{rec.recommended}</span>
-                </div>
-              </div>
-
+          {loading ? (
+            <div className="col-span-3 text-center py-8 text-gray-500">Loading recommendations...</div>
+          ) : error ? (
+            <div className="col-span-3 text-center py-8 text-red-500">{error}</div>
+          ) : recommendations.length === 0 ? (
+            <div className="col-span-3 text-center py-8 text-gray-500">No recommendations available.</div>
+          ) : recommendations.map((rec, index) => {
+            const Icon = iconMap[rec.title] || CheckCircle;
+            return (
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 + index * 0.1 }}
-                className="mb-4"
+                key={rec.title}
+                initial={{ opacity: 0, y: 50 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5, delay: index * 0.2 }}
+                whileHover={{ y: -8, scale: 1.02 }}
+                className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100 dark:border-gray-700"
               >
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400">
-                  <TrendingUp className="w-4 h-4 mr-1" />
-                  {rec.improvement}
-                </span>
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-12 h-12 rounded-xl bg-gradient-to-r ${getPriorityColor(rec.priority)} flex items-center justify-center`}>
+                    <Icon className="w-6 h-6 text-white" />
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                    rec.priority === 'high'
+                      ? 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                      : rec.priority === 'medium'
+                      ? 'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
+                      : 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400'
+                  }`}>
+                    {rec.priority.toUpperCase()} PRIORITY
+                  </span>
+                </div>
+
+                <h3 className="text-xl font-semibold text-gray-900 dark:text-white mb-3">
+                  {rec.title}
+                </h3>
+
+                <div className="space-y-3 mb-4">
+                  <div className="flex justify-between items-center py-2 px-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg">
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Current:</span>
+                    <span className="font-medium text-gray-900 dark:text-white">{rec.current}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-2 px-3 bg-gradient-to-r from-orange-50 to-yellow-50 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-lg border border-orange-200 dark:border-blue-800">
+                    <span className="text-sm text-orange-600 dark:text-blue-400">Recommended:</span>
+                    <span className="font-medium text-orange-700 dark:text-blue-300">{rec.recommended}</span>
+                  </div>
+                </div>
+
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 0.5 + index * 0.1 }}
+                  className="mb-4"
+                >
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400">
+                    <TrendingUp className="w-4 h-4 mr-1" />
+                    {rec.improvement}
+                  </span>
+                </motion.div>
+
+                <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
+                  {rec.description}
+                </p>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="w-full flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 text-white font-medium hover:shadow-lg transition-all duration-300"
+                >
+                  Apply Recommendation
+                  <ArrowRight className="w-4 h-4 ml-2" />
+                </motion.button>
               </motion.div>
-
-              <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
-                {rec.description}
-              </p>
-
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                className="w-full flex items-center justify-center px-4 py-2 rounded-xl bg-gradient-to-r from-orange-500 to-yellow-500 dark:from-blue-600 dark:to-indigo-600 text-white font-medium hover:shadow-lg transition-all duration-300"
-              >
-                Apply Recommendation
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </motion.button>
-            </motion.div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Optimization Tips */}

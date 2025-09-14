@@ -34,15 +34,28 @@ class SolarPredictionService {
   }
 
   /**
+   * Get authentication token from localStorage
+   */
+  private getAuthToken(): string | null {
+    return localStorage.getItem('access_token');
+  }
+
+  /**
    * Get solar power prediction from the AI model
    * @param request - Solar prediction parameters
    * @returns Promise<SolarPredictionResponse | SolarPredictionError>
    */
   async getSolarPrediction(request: SolarPredictionRequest): Promise<SolarPredictionResponse | SolarPredictionError> {
     try {
+      const token = this.getAuthToken();
+      if (!token) {
+        return { message: 'Authentication token not found. Please log in.', code: 'NO_TOKEN' };
+      }
+
       const response = await fetch(`${this.apiUrl}/predict/`, {
         method: 'POST',
         headers: {
+          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(request)
